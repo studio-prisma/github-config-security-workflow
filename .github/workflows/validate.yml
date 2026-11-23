@@ -45,6 +45,8 @@ jobs:
   # Self-test: the workflow scans its own repository.
   security:
     uses: ./.github/workflows/security.yml
+    secrets:
+      identity-pattern: ${{ secrets.IDENTITY_PATTERN }}
 
   # ---------------------------------------------------------------------------
   # Do not rename. "Gate" is the one required check. Add new jobs to `needs`.
