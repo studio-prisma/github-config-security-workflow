@@ -1,0 +1,68 @@
+name: Validate
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  schedule:
+    # Monday 06:00 UTC - catches new CVEs and upstream drift on an unchanged repo.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actionlint:
+    name: Workflow lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: actionlint
+        uses: raven-actions/actionlint@v2
+
+  # The version gate of release.yml, checked on every change as well.
+  changelog:
+    name: Changelog
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Unreleased section and at least one release present
+        run: |
+          set -euo pipefail
+          grep -q '^## \[Unreleased\]' CHANGELOG.md
+          grep -qE '^## \[[0-9]+\.[0-9]+\.[0-9]+\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$' CHANGELOG.md
+
+  # Self-test: the workflow scans its own repository.
+  security:
+    uses: ./.github/workflows/security.yml
+
+  # ---------------------------------------------------------------------------
+  # Do not rename. "Gate" is the one required check. Add new jobs to `needs`.
+  # `if: always()` is required - without it Gate is "skipped" when a job fails.
+  # ---------------------------------------------------------------------------
+  gate:
+    name: Gate
+    runs-on: ubuntu-latest
+    needs: [actionlint, changelog, security]
+    if: always()
+    steps:
+      - name: Fail unless every job succeeded
+        if: >-
+          contains(needs.*.result, 'failure') ||
+          contains(needs.*.result, 'cancelled') ||
+          contains(needs.*.result, 'skipped')
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS"
+          exit 1

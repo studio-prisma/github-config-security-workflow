@@ -1,0 +1,202 @@
+name: Security scan
+
+# Reusable workflow: gitleaks, TruffleHog, Trivy, Semgrep.
+# Call it from a repository's validate.yml and add the job to the gate's needs:
+#
+#   security:
+#     uses: studio-prisma/github-config-security-workflow/.github/workflows/security.yml@<commit-sha> # vX.Y.Z
+#     with:
+#       semgrep-rules: "p/php p/security-audit"
+#       dockerfile: Dockerfile          # empty = no image scan
+#
+# All four scanners block. Semgrep blocks only findings that are NEW against the
+# previous commit (push) or the PR base; a run without a baseline (schedule,
+# manual run, first push of a branch) scans everything and only reports.
+#
+# Supply chain: versions are pinned and at least two weeks old. Binaries are
+# checked against the checksum file of their release. No third-party actions.
+# Known residual risk: Semgrep comes from pip; its dependencies are not
+# hash-pinned.
+
+on:
+  workflow_call:
+    inputs:
+      semgrep-rules:
+        description: Semgrep rule packs, space separated
+        type: string
+        default: "p/security-audit"
+      dockerfile:
+        description: Dockerfile for the image scan, empty = no image scan
+        type: string
+        default: ""
+      docker-context:
+        description: Build context for the image scan
+        type: string
+        default: "."
+
+permissions:
+  contents: read
+
+env:
+  GITLEAKS_VERSION: "8.30.1"
+  TRUFFLEHOG_VERSION: "3.99.8"
+  TRIVY_VERSION: "0.76.1"
+  SEMGREP_VERSION: "1.183.0"
+
+jobs:
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # Full history: a secret in an old commit is just as exposed.
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          file="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfL -o "$file" "$base/$file"
+          curl -sSfL -o checksums.txt "$base/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          grep " $file\$" checksums.txt | sha256sum -c -
+          tar -xzf "$file" gitleaks
+          sudo mv gitleaks /usr/local/bin/
+
+      # Reads the repository's .gitleaks.toml and .gitleaksignore if present.
+      - name: gitleaks
+        run: gitleaks git --redact --no-banner --exit-code 1 .
+
+  # Verifies found keys live against the provider and reports only keys that
+  # still work. Red means: rotate the key now.
+  trufflehog:
+    name: TruffleHog (verified)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install trufflehog
+        run: |
+          set -euo pipefail
+          base="https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}"
+          file="trufflehog_${TRUFFLEHOG_VERSION}_linux_amd64.tar.gz"
+          curl -sSfL -o "$file" "$base/$file"
+          curl -sSfL -o checksums.txt "$base/trufflehog_${TRUFFLEHOG_VERSION}_checksums.txt"
+          grep " $file\$" checksums.txt | sha256sum -c -
+          tar -xzf "$file" trufflehog
+          sudo mv trufflehog /usr/local/bin/
+
+      - name: trufflehog
+        run: trufflehog git "file://$PWD" --results=verified --fail --no-update --json
+
+  # Fails only on HIGH/CRITICAL with a fix available. Exceptions belong in the
+  # repository's .trivyignore.yaml with a statement and, ideally, expired_at.
+  trivy:
+    name: Trivy
+    runs-on: ubuntu-latest
+    env:
+      TRIVY_SEVERITY: HIGH,CRITICAL
+      TRIVY_IGNORE_UNFIXED: "true"
+      TRIVY_EXIT_CODE: "1"
+      TRIVY_NO_PROGRESS: "true"
+      TRIVY_SKIP_VERSION_CHECK: "true"
+      DOCKERFILE: ${{ inputs.dockerfile }}
+      # Not DOCKER_CONTEXT: the docker CLI reads that variable as a context name.
+      BUILD_CONTEXT: ${{ inputs.docker-context }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install trivy
+        run: |
+          set -euo pipefail
+          base="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}"
+          file="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          curl -sSfL -o "$file" "$base/$file"
+          curl -sSfL -o checksums.txt "$base/trivy_${TRIVY_VERSION}_checksums.txt"
+          grep "  $file\$" checksums.txt | sha256sum -c -
+          tar -xzf "$file" trivy
+          sudo mv trivy /usr/local/bin/
+          rm -f "$file" checksums.txt
+
+      - name: Filesystem (deps + misconfig)
+        run: |
+          set -euo pipefail
+          args=(--scanners "vuln,misconfig")
+          if [[ -f .trivyignore.yaml ]]; then args+=(--ignorefile .trivyignore.yaml); fi
+          trivy fs "${args[@]}" .
+
+      - name: Build image
+        if: inputs.dockerfile != ''
+        run: docker build --platform linux/amd64 -f "$DOCKERFILE" -t security-scan:ci "$BUILD_CONTEXT"
+
+      - name: Image
+        if: inputs.dockerfile != ''
+        run: |
+          set -euo pipefail
+          args=(--scanners vuln)
+          if [[ -f .trivyignore.yaml ]]; then args+=(--ignorefile .trivyignore.yaml); fi
+          trivy image "${args[@]}" security-scan:ci
+
+  semgrep:
+    name: Semgrep
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # Needed to compare against the previous commit or the PR base.
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install semgrep
+        run: pip install "semgrep==${SEMGREP_VERSION}"
+
+      # Event values only via env, never interpolated into the script.
+      - name: semgrep
+        env:
+          SEMGREP_SEND_METRICS: "off"
+          RULES: ${{ inputs.semgrep-rules }}
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -uo pipefail
+          base=""
+          case "$EVENT" in
+            pull_request) base="$PR_BASE" ;;
+            push)         base="$PUSH_BEFORE" ;;
+          esac
+          # First push of a branch (0000…) or commit missing from the checkout: no baseline.
+          if [[ ! "$base" =~ ^[0-9a-f]{40}$ || "$base" =~ ^0+$ ]] \
+             || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            base=""
+          fi
+          args=()
+          for r in $RULES; do args+=(--config "$r"); done
+          if [[ -n "$base" ]]; then
+            mode="new findings since ${base:0:7} (blocking)"
+            semgrep scan "${args[@]}" --metrics=off --baseline-commit "$base" --error \
+              --text --output semgrep.txt .
+          else
+            mode="full scan without baseline (report only)"
+            semgrep scan "${args[@]}" --metrics=off --text --output semgrep.txt .
+          fi
+          rc=$?
+          {
+            echo "## Semgrep: ${mode}"
+            echo '```'
+            cat semgrep.txt 2>/dev/null || echo "(no output)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat semgrep.txt 2>/dev/null || true
+          exit "$rc"

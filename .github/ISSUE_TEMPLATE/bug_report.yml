@@ -1,0 +1,48 @@
+name: Bug report
+description: The workflow fails, passes when it should fail, or behaves differently than documented
+labels: ["bug"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Workflow version
+      description: Tag and commit you pinned in `uses:`
+      placeholder: "v1.0.1 (abc1234)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: caller
+    attributes:
+      label: Calling job
+      description: The `security:` job from your workflow, inputs included.
+      render: yaml
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scanner
+    attributes:
+      label: Affected scanner
+      options:
+        - gitleaks
+        - TruffleHog
+        - Trivy
+        - Semgrep
+        - the workflow itself
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, what did you expect
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Relevant log lines
+      description: Redact repository names, hostnames and anything secret.
+      render: text

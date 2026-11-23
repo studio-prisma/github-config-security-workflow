@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Version gate. CHANGELOG.md is the single source of the version: the
+      # newest released section must match the tag.
+      - name: Verify CHANGELOG version matches the tag
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          LATEST=$(grep -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md | head -1 | tr -d '#[] ')
+          if [ "$LATEST" != "$VERSION" ]; then
+            echo "::error::CHANGELOG.md declares '$LATEST' as newest release but the tag is '$VERSION'."
+            exit 1
+          fi
+          echo "Version $VERSION confirmed."
+
+      - name: Extract CHANGELOG section for this version
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          awk -v v="$VERSION" '
+            $0 ~ "^## \\["v"\\]" { found=1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          [ -s notes.md ] || { echo "::error::No CHANGELOG section for $TAG"; exit 1; }
+
+      # No build artifact: callers reference the workflow by commit.
+      - name: Create GitHub Release
+        run: gh release create "$TAG" --title "$TAG" --notes-file notes.md --verify-tag

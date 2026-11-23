@@ -1,0 +1,25 @@
+name: Feature request
+description: Propose a new input, scanner option or behaviour
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What can you not do today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Input name, default, and what blocks or reports differently.
+    validations:
+      required: true
+
+  - type: textarea
+    id: security
+    attributes:
+      label: Security impact
+      description: Does this change what makes the gate fail, or add a value that reaches a shell step?

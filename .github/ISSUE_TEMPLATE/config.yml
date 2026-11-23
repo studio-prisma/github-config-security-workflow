@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/studio-prisma/github-config-security-workflow/security/advisories/new
+    about: Please report security issues privately, never as a public issue.
+  - name: Scanner false positive or false negative
+    url: https://github.com/studio-prisma/github-config-security-workflow#supply-chain
+    about: Detection quality belongs to the scanner projects (gitleaks, TruffleHog, Trivy, Semgrep).
