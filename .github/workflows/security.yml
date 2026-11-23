@@ -1,6 +1,6 @@
 name: Security scan
 
-# Reusable workflow: gitleaks, TruffleHog, Trivy, Semgrep.
+# Reusable workflow: identity gate, gitleaks, TruffleHog, Trivy, Semgrep.
 # Call it from a repository's validate.yml and add the job to the gate's needs:
 #
 #   security:
@@ -8,6 +8,8 @@ name: Security scan
 #     with:
 #       semgrep-rules: "p/php p/security-audit"
 #       dockerfile: Dockerfile          # empty = no image scan
+#     secrets:
+#       identity-pattern: ${{ secrets.IDENTITY_PATTERN }}
 #
 # All four scanners block. Semgrep blocks only findings that are NEW against the
 # previous commit (push) or the PR base; a run without a baseline (schedule,
@@ -33,6 +35,13 @@ on:
         description: Build context for the image scan
         type: string
         default: "."
+    secrets:
+      identity-pattern:
+        description: >-
+          Extended regex of names that must never appear in the repository
+          (case-insensitive). Kept as a secret so the pattern itself stays private.
+          Empty = identity job fails, except on pull requests from forks.
+        required: false
 
 permissions:
   contents: read
@@ -44,6 +53,66 @@ env:
   SEMGREP_VERSION: "1.183.0"
 
 jobs:
+  # Identity gate: private names and real IPv4 addresses must not reach a public
+  # repository. Reports file:line only, never the matching text.
+  identity:
+    name: Identity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: No private names, no real IPv4 addresses
+        env:
+          PATTERN: ${{ secrets.identity-pattern }}
+          IS_FORK_PR: ${{ github.event.pull_request.head.repo.fork }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$PATTERN" ]]; then
+            if [[ "$IS_FORK_PR" == "true" ]]; then
+              echo "::notice::Pull request from a fork: no identity pattern available, name check skipped."
+            else
+              echo "::error::Secret identity-pattern is not set for this repository."
+              exit 1
+            fi
+          fi
+          mapfile -t files < <(git ls-files)
+          fail=0
+          # Names: every tracked file, no exceptions.
+          if [[ -n "$PATTERN" ]] && hits=$(printf '%s\0' "${files[@]}" \
+               | xargs -0 grep -IHniE -- "$PATTERN" 2>/dev/null | cut -d: -f1,2); then
+            echo "::error::Private name found (file:line, text withheld):"
+            echo "$hits"
+            fail=1
+          fi
+          # IPv4: paths listed in .identityignore (one glob per line, # comments)
+          # are skipped, e.g. four-part version numbers or example fixtures.
+          if [[ -f .identityignore ]]; then
+            mapfile -t ignore < <(grep -vE '^\s*(#|$)' .identityignore)
+            ignore+=(".identityignore")
+            keep=()
+            for f in "${files[@]}"; do
+              skip=0
+              for g in "${ignore[@]}"; do
+                # shellcheck disable=SC2053  # glob match intended
+                [[ "$f" == $g ]] && skip=1 && break
+              done
+              (( skip )) || keep+=("$f")
+            done
+            files=("${keep[@]}")
+          fi
+          ip='(^|[^0-9.])([0-9]{1,3}\.){3}[0-9]{1,3}([^0-9.]|$)'
+          # Only documentation ranges (RFC 5737), loopback, 0.0.0.0 and netmasks.
+          # Private ranges count as real: they reveal internal networks.
+          allowed='(192\.0\.2\.|198\.51\.100\.|203\.0\.113\.|127\.|0\.0\.0\.0|255\.255\.)'
+          if hits=$(printf '%s\0' "${files[@]}" | xargs -0 grep -IoHnE -- "$ip" 2>/dev/null \
+               | grep -vE ":[^0-9]*${allowed}" | cut -d: -f1,2); then
+            echo "::error::Public IPv4 address found (file:line). Use 192.0.2.x, 198.51.100.x or 203.0.113.x:"
+            echo "$hits"
+            fail=1
+          fi
+          exit "$fail"
+
   gitleaks:
     name: gitleaks
     runs-on: ubuntu-latest

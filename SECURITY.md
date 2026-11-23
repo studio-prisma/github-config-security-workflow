@@ -7,7 +7,7 @@ so pinned callers keep working, but they are not maintained.
 
 | Version | Supported |
 |---|---|
-| `1.0.x` | yes |
+| `1.1.x` | yes |
 | everything older | no |
 
 ## Reporting a Vulnerability
@@ -30,6 +30,7 @@ honest number, not a target.
 - a download path that skips or weakens the checksum verification
 - the workflow requesting or exposing more than `contents: read`
 - a scanner silently not running while the job reports success
+- the identity job printing matched text, or the pattern itself, to the log
 - a way for a pull request to make a blocking scanner pass without a visible
   change to an ignore file in its diff
 
@@ -47,7 +48,8 @@ Documented design decisions are not findings:
 
 ## Handling of Secrets
 
-The workflow receives no secrets and needs none. A secret that reached a commit
+The workflow accepts one secret, the identity pattern, and uses it in a single
+step without printing it. A secret that reached a commit
 is rotated first and removed second. The history stays readable either way.
 
 ## Disclosure
