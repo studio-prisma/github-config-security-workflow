@@ -85,7 +85,7 @@ It downloads actionlint from the official release and verifies the checksum.
 
 - scanner versions are pinned and at least two weeks old when adopted
 - binaries are verified against the checksum file of their release
-- no third-party actions; only `actions/checkout` and `actions/setup-python`
+- no third-party actions; only `actions/checkout` and `actions/setup-python`, both pinned to commit SHAs
 - the workflow requests `contents: read`; the only secret it accepts is the
   identity pattern, used in one step
 

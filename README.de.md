@@ -85,7 +85,7 @@ Sie lädt actionlint aus dem offiziellen Release und prüft die Prüfsumme.
 
 - Scanner-Versionen sind fest und bei Übernahme mindestens zwei Wochen alt
 - Binaries werden gegen die Prüfsummen-Datei ihres Releases geprüft
-- keine Actions von Dritten, nur `actions/checkout` und `actions/setup-python`
+- keine Actions von Dritten, nur `actions/checkout` und `actions/setup-python`, beide per Commit-ID gepinnt
 - der Workflow fordert `contents: read` an; das einzige Secret, das er annimmt, ist
   das Identitäts-Muster, genutzt in einem Schritt
 
