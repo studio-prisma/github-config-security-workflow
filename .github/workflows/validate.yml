@@ -26,7 +26,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: actionlint
-        uses: raven-actions/actionlint@v2
+        uses: ./.github/actions/actionlint
 
   # The version gate of release.yml, checked on every change as well.
   changelog:

@@ -1,0 +1,38 @@
+name: actionlint
+description: >-
+  Lints the repository's workflows with actionlint. The binary comes straight
+  from the rhysd/actionlint release and is verified against its checksum file.
+  Replaces raven-actions/actionlint (a third-party action pinned by tag only).
+
+# Usage (in the lint job, after checkout):
+#
+#   - name: actionlint
+#     uses: studio-prisma/github-config-security-workflow/.github/actions/actionlint@<commit-sha> # vX.Y.Z
+#
+# shellcheck is preinstalled on ubuntu-latest; actionlint uses it for run:
+# scripts automatically.
+
+runs:
+  using: composite
+  steps:
+    - name: Install actionlint
+      shell: bash
+      env:
+        # At least two weeks old when adopted; bump only here.
+        ACTIONLINT_VERSION: "1.7.12"
+      run: |
+        set -euo pipefail
+        dir="$RUNNER_TEMP/actionlint"
+        mkdir -p "$dir"
+        cd "$dir"
+        base="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}"
+        file="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+        curl -sSfL -o "$file" "$base/$file"
+        curl -sSfL -o checksums.txt "$base/actionlint_${ACTIONLINT_VERSION}_checksums.txt"
+        grep "  $file\$" checksums.txt | sha256sum -c -
+        tar -xzf "$file" actionlint
+        echo "$dir" >> "$GITHUB_PATH"
+
+    - name: actionlint
+      shell: bash
+      run: actionlint -color

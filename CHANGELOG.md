@@ -5,6 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follo
 
 ## [Unreleased]
 
+### Added
+
+- Composite action `.github/actions/actionlint`: installs actionlint 1.7.12 straight from the
+  rhysd/actionlint release and verifies it against the release checksums. Replaces
+  `raven-actions/actionlint@v2`, a third-party action pinned by tag only.
+
 ## [1.1.0] - 2026-11-23
 
 ### Added

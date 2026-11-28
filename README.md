@@ -69,6 +69,18 @@ compare against. Semgrep then scans everything and only reports; the other
 checks block as usual. Existing Semgrep findings therefore never block a change,
 new ones always do.
 
+## Workflow lint
+
+A composite action for the lint job, pinned to the commit of a release tag as
+well:
+
+```yaml
+      - name: actionlint
+        uses: studio-prisma/github-config-security-workflow/.github/actions/actionlint@<commit-sha> # vX.Y.Z
+```
+
+It downloads actionlint from the official release and verifies the checksum.
+
 ## Supply chain
 
 - scanner versions are pinned and at least two weeks old when adopted
