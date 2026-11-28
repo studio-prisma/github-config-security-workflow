@@ -5,6 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follo
 
 ## [Unreleased]
 
+### Changed
+
+- SECURITY.md: supported version is 1.2.x.
+
 ## [1.2.1] - 2026-11-28
 
 ### Fixed
