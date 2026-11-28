@@ -5,6 +5,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follo
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-28
+
+### Added
+
+- Composite action `.github/actions/actionlint`: installs actionlint 1.7.12 straight from the
+  rhysd/actionlint release and verifies it against the release checksums. Replaces
+  `raven-actions/actionlint@v2`, a third-party action pinned by tag only.
+
+### Changed
+
+- All actions are pinned to commit SHAs instead of tags, version as comment. Dependabot keeps
+  the pins current.
+
 ## [1.1.0] - 2026-11-23
 
 ### Added
@@ -28,6 +41,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follo
 - The image scan uses `BUILD_CONTEXT`; `DOCKER_CONTEXT` collides with the docker
   CLI ("no builder . found").
 
-[Unreleased]: https://github.com/studio-prisma/github-config-security-workflow/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/studio-prisma/github-config-security-workflow/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/studio-prisma/github-config-security-workflow/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/studio-prisma/github-config-security-workflow/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/studio-prisma/github-config-security-workflow/releases/tag/v1.0.1

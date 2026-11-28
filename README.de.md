@@ -69,11 +69,23 @@ keinen Vergleichsstand. Semgrep scannt dann alles und berichtet nur; die
 anderen Checks blockieren wie gewohnt. Bestehende Semgrep-Funde blockieren damit
 nie eine Änderung, neue immer.
 
+## Workflow-Lint
+
+Eine Composite-Action für den Lint-Job, ebenfalls auf den Commit eines
+Release-Tags gepinnt:
+
+```yaml
+      - name: actionlint
+        uses: studio-prisma/github-config-security-workflow/.github/actions/actionlint@<commit-sha> # vX.Y.Z
+```
+
+Sie lädt actionlint aus dem offiziellen Release und prüft die Prüfsumme.
+
 ## Lieferkette
 
 - Scanner-Versionen sind fest und bei Übernahme mindestens zwei Wochen alt
 - Binaries werden gegen die Prüfsummen-Datei ihres Releases geprüft
-- keine Actions von Dritten, nur `actions/checkout` und `actions/setup-python`
+- keine Actions von Dritten, nur `actions/checkout` und `actions/setup-python`, beide per Commit-ID gepinnt
 - der Workflow fordert `contents: read` an; das einzige Secret, das er annimmt, ist
   das Identitäts-Muster, genutzt in einem Schritt
 
