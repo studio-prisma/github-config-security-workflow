@@ -7,7 +7,7 @@ so pinned callers keep working, but they are not maintained.
 
 | Version | Supported |
 |---|---|
-| `1.1.x` | yes |
+| `1.2.x` | yes |
 | everything older | no |
 
 ## Reporting a Vulnerability
